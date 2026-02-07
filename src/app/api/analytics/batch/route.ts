@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { isDatabaseConfigured, supabase } from '@/lib/supabaseClient';
 import MaximumSecurity from '@/lib/enhanced-security';
 import { APISecurityManager } from '@/lib/api-security';
 
@@ -25,6 +25,10 @@ export async function POST(request: NextRequest) {
   if (securityCheck) return securityCheck;
 
   try {
+    if (!isDatabaseConfigured) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
+
     const body = await request.json();
     
     // Validate and sanitize POST data
@@ -164,8 +168,12 @@ async function processEvent(event: BatchAnalyticsEvent) {
         break;
 
       case 'page_view':
-        // Could track page views in a separate table if needed
-        console.log('Page view tracked:', eventData.page);
+        await supabase.from('page_views').insert({
+          session_id: sessionId,
+          page_path: eventData.page,
+          page_title: eventData.title,
+          referrer: eventData.referrer
+        });
         break;
 
       case 'user_action':
@@ -178,6 +186,54 @@ async function processEvent(event: BatchAnalyticsEvent) {
             eventData.details?.duration || 0
           );
         }
+        break;
+      case 'cookie_consent':
+        await supabase.from('cookie_consents').insert({
+          session_id: sessionId,
+          necessary: eventData.necessary,
+          analytics: eventData.analytics,
+          advertising: eventData.advertising,
+          personalization: eventData.personalization,
+          ai_learning: eventData.aiLearning || false,
+          intimacy_level: eventData.intimacyLevel || false
+        });
+        break;
+      case 'journey_step':
+        await supabase.from('user_journey_steps').insert({
+          session_id: sessionId,
+          step_name: eventData.stepName,
+          step_order: eventData.stepOrder,
+          page_path: eventData.pagePath
+        });
+        break;
+      case 'session_update':
+        await supabase
+          .from('user_sessions')
+          .update({
+            ended_at: eventData.endedAt,
+            duration_seconds: eventData.durationSeconds,
+            is_active: eventData.isActive
+          })
+          .eq('session_id', sessionId);
+        break;
+      case 'session_message_increment':
+        await supabase.rpc('increment_session_messages', {
+          session_id_param: sessionId
+        });
+        break;
+      case 'user_analytics':
+        await supabase.from('user_analytics').upsert({
+          session_id: sessionId,
+          user_pseudo_id: eventData.userPseudoId || sessionId,
+          country_code: eventData.countryCode,
+          country_name: eventData.countryName,
+          timezone: eventData.timezone,
+          device_type: eventData.deviceType,
+          browser: eventData.browser,
+          os: eventData.os,
+          screen_resolution: eventData.screenResolution,
+          language: eventData.language
+        });
         break;
 
       default:

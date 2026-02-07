@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { mkdir, unlink, writeFile } from 'fs/promises';
+import path from 'path';
 import MaximumSecurity from '@/lib/enhanced-security';
 import { APISecurityManager } from '@/lib/api-security';
 
@@ -66,41 +67,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Invalid file type. Allowed types: ${allowedTypes.join(', ')}` }, { status: 400 });
     }
 
-    if (!supabase) {
-      return NextResponse.json({ error: 'Supabase client not available' }, { status: 500 });
-    }
-
     // Generate unique filename
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const bucketPath = path.join(process.cwd(), 'public', 'uploads', bucketName);
+    const filePath = path.join(bucketPath, fileName);
 
     // Convert File to ArrayBuffer then to Uint8Array
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
 
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from(bucketName)
-      .upload(filePath, uint8Array, {
-        contentType: file.type,
-        upsert: false,
-      });
-
-    if (error) {
-      console.error('Supabase storage upload error:', error);
-      return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
-    }
-
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucketName)
-      .getPublicUrl(filePath);
+    await mkdir(bucketPath, { recursive: true });
+    await writeFile(filePath, uint8Array);
+    const publicUrl = `/uploads/${bucketName}/${fileName}`;
 
     return NextResponse.json({
       success: true,
       url: publicUrl,
-      path: filePath,
+      path: fileName,
       bucket: bucketName,
       type: file.type,
       size: file.size,
@@ -122,26 +106,18 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const path = searchParams.get('path');
+    const fileParam = searchParams.get('path');
     const bucket = searchParams.get('bucket');
 
-    if (!path || !bucket) {
+    if (!fileParam || !bucket) {
       return NextResponse.json({ error: 'Missing path or bucket parameter' }, { status: 400 });
     }
-
-    if (!supabase) {
-      return NextResponse.json({ error: 'Supabase client not available' }, { status: 500 });
+    if (fileParam.includes('..') || fileParam.includes('/') || fileParam.includes('\\')) {
+      return NextResponse.json({ error: 'Invalid path parameter' }, { status: 400 });
     }
 
-    // Delete from Supabase Storage
-    const { error } = await supabase.storage
-      .from(bucket)
-      .remove([path]);
-
-    if (error) {
-      console.error('Supabase storage delete error:', error);
-      return NextResponse.json({ error: `Delete failed: ${error.message}` }, { status: 500 });
-    }
+    const filePath = path.join(process.cwd(), 'public', 'uploads', bucket, fileParam);
+    await unlink(filePath);
 
     return NextResponse.json({ success: true });
 

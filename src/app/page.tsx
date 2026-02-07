@@ -39,7 +39,7 @@ const ChatListItem: React.FC<{ profile: AIProfile; lastMessage?: string; timesta
   };
 
   return (
-    <div className="flex items-center p-3 bg-transparent hover:bg-secondary/50 cursor-pointer transition-colors">
+    <div className="flex items-center p-3 sm:p-4 bg-transparent hover:bg-secondary/50 cursor-pointer transition-colors">
       <div
         className={cn(
           "relative rounded-full mr-4 shrink-0",
@@ -48,7 +48,7 @@ const ChatListItem: React.FC<{ profile: AIProfile; lastMessage?: string; timesta
          key={`avatar-wrapper-${profile.name}-${avatarUrlToUse || 'default_wrapper_key_cli'}`}
       >
         <Avatar
-          className="h-12 w-12"
+          className="h-12 w-12 sm:h-14 sm:w-14"
           key={`avatar-comp-${profile.name}-${avatarUrlToUse || 'default_avatar_comp_key_cli'}`}
           style={{ width: '48px', height: '48px', minWidth: '48px', minHeight: '48px', aspectRatio: '1/1', contain: 'strict' }}
         >
@@ -68,15 +68,15 @@ const ChatListItem: React.FC<{ profile: AIProfile; lastMessage?: string; timesta
         </Avatar>
       </div>
       <div className="flex-grow overflow-hidden min-w-0">
-        <h2 className="font-semibold text-md truncate text-foreground">{profile.name}</h2>
-        <p className="text-sm text-muted-foreground truncate">{displayLastMessage}</p>
+        <h2 className="font-semibold text-base sm:text-md truncate text-foreground">{profile.name}</h2>
+        <p className="text-sm sm:text-base text-muted-foreground truncate">{displayLastMessage}</p>
         <div className="flex items-center mt-1">
           <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-          <span className="text-xs text-green-700 font-medium">Online</span>
+          <span className="text-xs sm:text-sm text-green-700 font-medium">Online</span>
         </div>
       </div>
       <div className="flex flex-col items-end justify-between text-xs ml-2 shrink-0 min-w-[60px] h-full py-1">
-        <span className="text-muted-foreground text-xs">{timestamp}</span>
+        <span className="text-muted-foreground text-xs sm:text-sm">{timestamp}</span>
         {unreadCount && unreadCount > 0 && (
           <div className="w-5 h-5 bg-[#25d366] rounded-full flex items-center justify-center mt-auto">
             <span className="text-xs font-bold text-white leading-none">{unreadCount}</span>
@@ -170,10 +170,10 @@ const ChatListPage: React.FC = () => {
         Skip to main content
       </a>
       <PullToRefresh />
-      <div className="flex flex-col h-screen h-[100dvh] max-w-3xl mx-auto bg-background shadow-2xl overflow-hidden">
+      <div className="flex flex-col h-screen h-[100dvh] w-full max-w-3xl mx-auto bg-background md:shadow-2xl overflow-hidden">
       {/* WhatsApp-style Header */}
       <header className="bg-[#25d366] shadow-sm sticky top-0 z-10 flex-shrink-0">
-        <div className="px-4 py-3 flex items-center justify-between">
+        <div className="px-4 py-3 sm:px-6 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-white">Chats</h1>
           <nav className="flex items-center space-x-3" aria-label="Main navigation">
             <button 

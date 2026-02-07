@@ -1,20 +1,25 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { executeServerQuery } from '@/lib/supabaseClient';
 
 export async function GET(request: NextRequest) {
   try {
-    // Check database connectivity
-    const { data, error } = await supabase
-      .from('messages_log')
-      .select('message_id')
-      .limit(1);
-
-    const dbStatus = error ? 'unhealthy' : 'healthy';
+    let dbStatus: 'healthy' | 'unhealthy' = 'healthy';
+    const { error } = await executeServerQuery({
+      action: 'select',
+      table: 'messages_log',
+      filters: [],
+      selectColumns: 'message_id',
+      limit: 1
+    });
+    dbStatus = error ? 'unhealthy' : 'healthy';
 
     // Check environment variables
-    const configStatus = process.env.NEXT_PUBLIC_SUPABASE_URL && 
-                        process.env.GOOGLE_CREDENTIALS_JSON ? 'healthy' : 'unhealthy';
+    const configStatus = process.env.MYSQL_HOST &&
+                        process.env.MYSQL_USER &&
+                        process.env.MYSQL_DATABASE &&
+                        process.env.ADMIN_EMAIL &&
+                        process.env.ADMIN_SESSION_SECRET ? 'healthy' : 'unhealthy';
 
     const overall = dbStatus === 'healthy' && configStatus === 'healthy' ? 'healthy' : 'degraded';
 

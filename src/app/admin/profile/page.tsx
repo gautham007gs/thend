@@ -20,7 +20,7 @@ import { BarChart as RechartsBarChart, CartesianGrid, XAxis, YAxis, Bar } from '
 import type { ChartConfig } from "@/components/ui/chart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Database, Users, MessageSquare, LogOut, Link, Settings, ExternalLink, Palette, Info, UserCircle, Globe, ImagePlus, Music2, Trash2, PlusCircle, Edit3, Sparkles, BarChartHorizontalBig, Edit, FileText, RefreshCcw, RotateCcw, Newspaper, LayoutPanelLeft, TrendingUp, ShieldAlert } from "lucide-react"
-import { supabase } from '@/lib/supabaseClient';
+import { isDatabaseConfigured, supabase } from '@/lib/supabaseClient';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -118,7 +118,7 @@ const AdminProfilePage: React.FC = () => {
 
   const fetchAllNonAnalyticsConfigs = useCallback(async () => {
     if (!supabase) {
-      toast({ title: "Supabase Error", description: "Supabase client not available. Cannot load some global configurations.", variant: "destructive" });
+      toast({ title: "Hostinger DB Error", description: "Hostinger DB client not available. Cannot load some global configurations.", variant: "destructive" });
       setAdSettings(defaultAdSettings);
       setCurrentGlobalAIProfile(defaultAIProfile);
       return;
@@ -157,7 +157,7 @@ const AdminProfilePage: React.FC = () => {
       await fetchMediaAssets();
 
     } catch (error: any) {
-      console.error("Failed to load some global configurations from Supabase:", error);
+      console.error("Failed to load some global configurations from Hostinger DB:", error);
       toast({ title: "Error Loading Some Global Configs", description: `Could not load some global settings. Using defaults. ${error.message || ''}`, variant: "destructive" });
       setAdSettings(defaultAdSettings);
       setCurrentGlobalAIProfile(defaultAIProfile);
@@ -180,8 +180,8 @@ const AdminProfilePage: React.FC = () => {
     if (!isAuthenticated) return;
 
     async function fetchRealAnalytics() {
-      if (!supabase || typeof supabase.from !== 'function' || !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        setSupabaseError("Supabase client is not configured or environment variables are missing. Real analytics will be unavailable. Please check environment variables and SUPABASE_SETUP.md.");
+      if (!supabase || typeof supabase.from !== 'function' || !isDatabaseConfigured) {
+        setSupabaseError("Hostinger DB client is not configured or environment variables are missing. Real analytics will be unavailable. Please check environment variables and HOSTINGER_MYSQL_SETUP.sql.");
         setAnalyticsLoading(false);
         setRealTotalUserMessages(0);
         setRealTotalAiMessages(0);
@@ -240,10 +240,10 @@ const AdminProfilePage: React.FC = () => {
         setCurrentDAU(todayDAU ? todayDAU.count : 0);
 
       } catch (err: any) {
-        console.error("Error fetching real analytics from Supabase:", err);
-        const errorMessage = err.message || "Could not fetch real analytics from Supabase.";
+        console.error("Error fetching real analytics from Hostinger DB:", err);
+        const errorMessage = err.message || "Could not fetch real analytics from Hostinger DB.";
         setSupabaseError(errorMessage);
-        toast({ title: "Analytics Error", description: `${errorMessage} Check SUPABASE_SETUP.md and ensure SQL functions exist.`, variant: "destructive" });
+        toast({ title: "Analytics Error", description: `${errorMessage} Check HOSTINGER_MYSQL_SETUP.sql and ensure SQL functions exist.`, variant: "destructive" });
         setRealTotalUserMessages(0);
         setRealTotalAiMessages(0);
         setRealMessagesSentLast7Days([]);
@@ -294,7 +294,7 @@ const AdminProfilePage: React.FC = () => {
 
   const handleSaveAdminStatus = async () => {
     if (!supabase) {
-      toast({ title: "Supabase Error", description: "Supabase client not available.", variant: "destructive" });
+      toast({ title: "Hostinger DB Error", description: "Hostinger DB client not available.", variant: "destructive" });
       return;
     }
     const statusToSave = {
@@ -313,7 +313,7 @@ const AdminProfilePage: React.FC = () => {
       toast({ title: "Global 'My Status' Saved!", description: "Your status for the Status Page has been updated universally." });
     } catch (error: any)
       {
-      console.error("Failed to save 'My Status' to Supabase:", error);
+      console.error("Failed to save 'My Status' to Hostinger DB:", error);
       toast({ title: "Error Saving 'My Status'", description: `Could not save your status globally. ${error.message || ''}`, variant: "destructive" });
     }
   };
@@ -352,7 +352,7 @@ const AdminProfilePage: React.FC = () => {
 
   const handleSaveManagedContactStatuses = async () => {
     if (!supabase) {
-      toast({ title: "Supabase Error", description: "Supabase client not available.", variant: "destructive" });
+      toast({ title: "Hostinger DB Error", description: "Hostinger DB client not available.", variant: "destructive" });
       return;
     }
     try {
@@ -366,7 +366,7 @@ const AdminProfilePage: React.FC = () => {
       await fetchGlobalStatuses();
       toast({ title: "Global Demo Contacts Saved!", description: "Status details for demo contacts have been updated universally." });
     } catch (error: any) {
-      console.error("Failed to save managed contact statuses to Supabase:", error);
+      console.error("Failed to save managed contact statuses to Hostinger DB:", error);
       toast({ title: "Error Saving Demo Contacts", description: `Could not save demo contact statuses globally. ${error.message || ''}`, variant: "destructive" });
     }
   };
@@ -392,7 +392,7 @@ const AdminProfilePage: React.FC = () => {
 
   const handleSaveAdSettings = async () => {
     if (!supabase) {
-      toast({ title: "Supabase Error", description: "Supabase client not available. Cannot save ad settings.", variant: "destructive" });
+      toast({ title: "Hostinger DB Error", description: "Hostinger DB client not available. Cannot save ad settings.", variant: "destructive" });
       return;
     }
     const settingsToSave: AdSettings = {
@@ -410,10 +410,10 @@ const AdminProfilePage: React.FC = () => {
           { onConflict: 'id' }
         );
       if (error) throw error;
-      toast({ title: "Global Ad Settings Saved!", description: "Ad configurations have been saved to Supabase and will apply universally." });
+      toast({ title: "Global Ad Settings Saved!", description: "Ad configurations have been saved to Hostinger DB and will apply universally." });
     } catch (error: any) {
-      console.error("Failed to save ad settings to Supabase:", error);
-      toast({ title: "Error Saving Ad Settings", description: `Could not save global ad settings to Supabase. ${error.message || ''}`, variant: "destructive" });
+      console.error("Failed to save ad settings to Hostinger DB:", error);
+      toast({ title: "Error Saving Ad Settings", description: `Could not save global ad settings to Hostinger DB. ${error.message || ''}`, variant: "destructive" });
     }
   };
 
@@ -460,7 +460,7 @@ const AdminProfilePage: React.FC = () => {
     if (asset.storagePath && asset.storageBucket) {
       try {
         if (!supabase) {
-          toast({ title: "Error", description: "Supabase client not available", variant: "destructive" });
+          toast({ title: "Error", description: "Hostinger DB client not available", variant: "destructive" });
           return;
         }
 
@@ -498,7 +498,7 @@ const AdminProfilePage: React.FC = () => {
 
     // Auto-save to persist deletion
     if (!supabase) {
-      toast({ title: "Asset Removed", description: "File removed locally. Supabase unavailable - click 'Save' manually.", variant: "destructive" });
+      toast({ title: "Asset Removed", description: "File removed locally. Hostinger DB unavailable - click 'Save' manually.", variant: "destructive" });
       return;
     }
 
@@ -528,7 +528,7 @@ const AdminProfilePage: React.FC = () => {
 
     try {
       if (!supabase) {
-        throw new Error('Supabase client not available');
+        throw new Error('Hostinger DB client not available');
       }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -574,7 +574,7 @@ const AdminProfilePage: React.FC = () => {
 
       // Auto-save to Supabase to persist immediately
       if (!supabase) {
-        toast({ title: "Warning", description: "File uploaded but Supabase unavailable. Click 'Save' manually.", variant: "destructive" });
+        toast({ title: "Warning", description: "File uploaded but Hostinger DB unavailable. Click 'Save' manually.", variant: "destructive" });
         setUploadProgress('');
         setUploadingFile(false);
         return;
@@ -609,7 +609,7 @@ const AdminProfilePage: React.FC = () => {
 
   const handleSaveAIMediaAssets = async () => {
     if (!supabase) {
-      toast({ title: "Supabase Error", description: "Supabase client not available.", variant: "destructive" });
+      toast({ title: "Hostinger DB Error", description: "Hostinger DB client not available.", variant: "destructive" });
       return;
     }
     try {
@@ -623,7 +623,7 @@ const AdminProfilePage: React.FC = () => {
       await fetchMediaAssets();
       toast({ title: "Global AI Media Assets Saved!", description: "Kruthika's sharable images and audio have been updated universally." });
     } catch (error: any) {
-      console.error("Failed to save AI Media Assets to Supabase:", error);
+      console.error("Failed to save AI Media Assets to Hostinger DB:", error);
       toast({ title: "Error Saving AI Media", description: `Could not save AI media assets globally. ${error.message || ''}`, variant: "destructive" });
     }
   };
@@ -639,13 +639,13 @@ const AdminProfilePage: React.FC = () => {
   };
 
   const handleForceRefreshGlobalData = async () => {
-    toast({ title: "Refreshing...", description: "Manually fetching latest global data from Supabase."});
+    toast({ title: "Refreshing...", description: "Manually fetching latest global data from Hostinger DB."});
     await fetchAllNonAnalyticsConfigs();
     toast({ title: "Refreshed!", description: "Global data updated."});
   };
 
 
-  if (!isAuthenticated || combinedIsLoadingSupabaseData) {
+  if (!isAuthenticated || combinedIsLoadingHostinger DBData) {
     return <div className="flex justify-center items-center h-screen bg-background text-foreground">Loading admin settings...</div>;
   }
 
@@ -666,7 +666,7 @@ const AdminProfilePage: React.FC = () => {
           <Sparkles className="mr-3 h-7 w-7" /> Kruthika Chat Admin Panel
         </h1>
         <div className="flex gap-2">
-          <Button onClick={handleForceRefreshGlobalData} variant="outline" size="sm" title="Force refresh all global data from Supabase">
+          <Button onClick={handleForceRefreshGlobalData} variant="outline" size="sm" title="Force refresh all global data from Hostinger DB">
             <RefreshCcw className="mr-2 h-4 w-4" /> Refresh Data
           </Button>
           <Button onClick={handleLogout} variant="outline" size="sm">
@@ -1342,12 +1342,12 @@ const AdminProfilePage: React.FC = () => {
               <Alert variant={supabaseError ? "destructive" : "default"} className={`mt-4 ${supabaseError ? "" : "bg-primary/10 border-primary/30"}`}>
                 {supabaseError ? <Terminal className="h-4 w-4 !text-destructive" /> : <Database className="h-4 w-4 !text-primary" />}
                 <AlertTitle className={supabaseError ? "text-destructive font-semibold" : "text-primary font-semibold"}>
-                  {supabaseError ? "Supabase Connection Issue" : "Analytics Data Source"}
+                  {supabaseError ? "Hostinger DB Connection Issue" : "Analytics Data Source"}
                 </AlertTitle>
                 <AlertDescription className={`${supabaseError ? "text-destructive/80" : "text-primary/80"} text-sm`}>
                   {supabaseError
-                    ? `Error: ${supabaseError}. Realtime analytics might be unavailable or incorrect. Ensure Supabase is configured correctly as per SUPABASE_SETUP.md, including all SQL functions and tables.`
-                    : "Total User Messages, Total AI Messages, Daily Active Users (DAU), and related charts are fetched from Supabase if configured. DAU is an estimate based on browser-specific pseudo-anonymous identifiers for Kruthika Chat."}
+                    ? `Error: ${supabaseError}. Realtime analytics might be unavailable or incorrect. Ensure Hostinger DB is configured correctly as per HOSTINGER_MYSQL_SETUP.sql, including all SQL functions and tables.`
+                    : "Total User Messages, Total AI Messages, Daily Active Users (DAU), and related charts are fetched from Hostinger DB if configured. DAU is an estimate based on browser-specific pseudo-anonymous identifiers for Kruthika Chat."}
                 </AlertDescription>
               </Alert>
             </CardHeader>

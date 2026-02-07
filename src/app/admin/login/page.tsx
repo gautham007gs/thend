@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert } from '@/components/ui/alert'; // Added import
 import { useToast } from '@/hooks/use-toast';
 import { KeyRound, ShieldAlert } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient'; // Import Supabase client
 
 export const dynamic = 'force-dynamic';
 
@@ -48,30 +47,24 @@ const AdminLoginPage: React.FC = () => {
     setError('');
     setIsLoading(true);
 
-    if (!supabase) {
-      setError('Supabase client is not available. Please check configuration.');
-      setIsLoading(false);
-      toast({ title: 'Login Error', description: 'Authentication service not available.', variant: 'destructive' });
-      return;
-    }
-
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
+    const response = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
     });
 
     setIsLoading(false);
 
-    if (signInError) {
-      setError(signInError.message || 'Invalid login credentials.');
-      toast({ title: 'Login Failed', description: signInError.message || 'Incorrect email or password.', variant: 'destructive' });
-    } else if (data.user && data.session) {
-      // Successfully authenticated with Supabase
+    if (!response.ok) {
+      const payload = await response.json();
+      setError(payload.error || 'Invalid login credentials.');
+      toast({ title: 'Login Failed', description: payload.error || 'Incorrect email or password.', variant: 'destructive' });
+    } else {
       try {
         if (typeof window !== 'undefined') {
           // Store both the flag and session info for API verification
           sessionStorage.setItem(ADMIN_AUTH_KEY, 'true');
-          // Session token will be automatically managed by Supabase client
+          // Session token is stored in a secure HTTP-only cookie.
         }
         toast({ title: 'Login Successful', description: "Welcome to the Admin Panel!" });
         // Redirect to the return URL (the page they were trying to access)
@@ -80,10 +73,6 @@ const AdminLoginPage: React.FC = () => {
           console.error("Error setting sessionStorage:", sessionError);
           setError(`Failed to initiate session. Please ensure cookies/session storage are enabled. ${sessionError.message || ''}`);
           toast({ title: 'Session Error', description: `Could not save login state. ${sessionError.message || ''}`, variant: 'destructive' });
-      }
-    } else {
-      setError('An unknown error occurred during login.');
-      toast({ title: 'Login Error', description: 'An unexpected error occurred.', variant: 'destructive' });
     }
   };
 
@@ -101,7 +90,7 @@ const AdminLoginPage: React.FC = () => {
           <Alert variant="default" className="mb-6 bg-primary/10 border-primary/30">
             <ShieldAlert size={20} className="mr-2 shrink-0 mt-0.5 !text-primary" />
             <div>
-              <span className="font-semibold !text-primary">Admin Access:</span> Uses Supabase Authentication. Ensure your RLS policies for `app_configurations` are updated to restrict write access to authenticated admin users.
+              <span className="font-semibold !text-primary">Admin Access:</span> Uses Hostinger database authentication. Make sure ADMIN_EMAIL/ADMIN_PASSWORD settings are configured in your environment.
             </div>
           </Alert>
           <form onSubmit={handleSubmit} className="space-y-6">

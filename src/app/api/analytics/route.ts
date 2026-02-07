@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { isDatabaseConfigured, supabase } from '@/lib/supabaseClient';
 import MaximumSecurity from '@/lib/enhanced-security';
 import { APISecurityManager } from '@/lib/api-security';
 
@@ -43,13 +43,13 @@ async function getRealTopCountries() {
     const { data: analytics, error } = await supabase
       .from('user_analytics')
       .select('country_name, country_code')
-      .not('country_name', 'is', null)
       .limit(1000);
 
     if (error) throw error;
     if (!analytics || analytics.length === 0) return [];
 
-    const countryCounts = analytics.reduce((acc, item) => {
+    const filteredAnalytics = analytics.filter(item => item.country_name);
+    const countryCounts = filteredAnalytics.reduce((acc, item) => {
       const country = item.country_name;
       if (country) {
         acc[country] = (acc[country] || 0) + 1;
@@ -320,6 +320,10 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || 'overview';
     const dateRange = searchParams.get('dateRange') || '7d';
 
+    if (!isDatabaseConfigured) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
+
     // Check if we need to seed initial data
     const { data: existingMessages } = await supabase
       .from('messages_log')
@@ -396,8 +400,7 @@ async function getOverviewAnalytics(startDate: string) {
         .select('created_at, sender_type, has_image')
         .gte('created_at', startDate + 'T00:00:00Z')
         .order('created_at', { ascending: false })
-        .limit(3000) // Further reduced for better performance
-        .abortSignal(AbortSignal.timeout(5000)), // 5 second timeout
+        .limit(3000), // Further reduced for better performance
       supabase
         .from('daily_activity_log')
         .select('activity_date, user_pseudo_id')
@@ -535,7 +538,7 @@ async function getOverviewAnalytics(startDate: string) {
         // Status
         isRealTime: true,
         lastUpdated: new Date().toISOString(),
-        dataSource: 'supabase_real_only'
+        dataSource: 'mysql'
       }
     });
   } catch (error) {
@@ -588,7 +591,7 @@ async function getRealTimeMetrics() {
         topPages,
         serverStatus: 'healthy',
         lastUpdated: new Date().toISOString(),
-        dataSource: 'supabase_real_only'
+        dataSource: 'mysql'
       }
     });
   } catch (error) {
@@ -642,7 +645,7 @@ async function getDetailedAnalytics(startDate: string) {
           .sort((a, b) => b.messages - a.messages)
           .slice(0, 6),
         lastUpdated: new Date().toISOString(),
-        dataSource: 'supabase_real_only'
+        dataSource: 'mysql'
       }
     });
   } catch (error) {

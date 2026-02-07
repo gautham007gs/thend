@@ -10,6 +10,7 @@ const MAX_REQUESTS_PER_WINDOW = 100; // Increased for normal traffic
 const MAX_REQUESTS_BURST = 20; // Burst protection
 const SLOW_CLIENT_THRESHOLD = 5000; // 5 seconds for slow responses
 const PENALTY_MULTIPLIER = 0.5; // Reduce limits for repeat offenders
+const MIN_REQUESTS_PER_WINDOW = 10; // Always allow a small baseline
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
@@ -31,7 +32,10 @@ function isRateLimited(ip: string): boolean {
   }
 
   // Calculate effective limit based on penalties
-  const effectiveLimit = Math.floor(MAX_REQUESTS_PER_WINDOW * (1 - (userRate.penalties * PENALTY_MULTIPLIER)));
+  const effectiveLimit = Math.max(
+    MIN_REQUESTS_PER_WINDOW,
+    Math.floor(MAX_REQUESTS_PER_WINDOW * (1 - (userRate.penalties * PENALTY_MULTIPLIER)))
+  );
 
   // Burst protection - check last 10 seconds
   const recentWindow = 10 * 1000;
@@ -59,6 +63,17 @@ function isRateLimited(ip: string): boolean {
   return false;
 }
 
+function getClientIp(request: NextRequest): string {
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    const ip = forwardedFor.split(',')[0]?.trim();
+    if (ip) return ip;
+  }
+
+  const realIp = request.headers.get('x-real-ip');
+  return realIp?.trim() || 'unknown';
+}
+
 function isInstagramInAppBrowserServer(userAgent: string | null): boolean {
   if (userAgent) {
     // Common patterns for Instagram's in-app browser user agent string
@@ -68,8 +83,10 @@ function isInstagramInAppBrowserServer(userAgent: string | null): boolean {
 }
 
 export async function middleware(request: NextRequest) {
+  const middlewareStart = Date.now();
   const { pathname, searchParams, origin } = request.nextUrl;
   const userAgent = request.headers.get('user-agent');
+  const adminSession = request.cookies.get('admin_session')?.value;
 
   // Apply enhanced maximum security ONLY to API routes (not pages/assets)
   if (pathname.startsWith('/api/')) {
@@ -78,7 +95,7 @@ export async function middleware(request: NextRequest) {
     if (securityCheck) return securityCheck;
 
     // Legacy rate limiting (kept for additional protection)
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const ip = getClientIp(request);
     if (isRateLimited(ip)) {
       // Log rate limit violation for monitoring
       console.warn(`[RATE-LIMIT] IP ${ip} exceeded rate limit on ${pathname}`);
@@ -91,6 +108,14 @@ export async function middleware(request: NextRequest) {
           'X-RateLimit-Remaining': '0'
         } }
       );
+    }
+  }
+
+  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
+    if (!adminSession) {
+      const loginUrl = new URL('/admin/login', origin);
+      loginUrl.searchParams.set('returnUrl', pathname);
+      return NextResponse.redirect(loginUrl);
     }
   }
 
@@ -128,6 +153,9 @@ export async function middleware(request: NextRequest) {
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     response.headers.set('X-XSS-Protection', '1; mode=block');
     response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    if ((request.headers.get('x-forwarded-proto') || request.nextUrl.protocol) === 'https:') {
+      response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+    }
 
     // Add caching headers for static assets
     if (request.nextUrl.pathname.startsWith('/_next/static/') || 
@@ -140,7 +168,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Add performance timing headers
-    response.headers.set('Server-Timing', `middleware;dur=${Date.now()}`);
+    response.headers.set('Server-Timing', `middleware;dur=${Date.now() - middlewareStart}`);
 
     return response;
   }
@@ -259,7 +287,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Add performance timing headers
-  response.headers.set('Server-Timing', `middleware;dur=${Date.now()}`);
+  response.headers.set('Server-Timing', `middleware;dur=${Date.now() - middlewareStart}`);
 
   return response;
 }

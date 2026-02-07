@@ -1,9 +1,8 @@
 // Enhanced Analytics Tracking System for Kruthika.fun - Real Data Only
 import { CookieManager } from './cookie-manager';
-import { supabase } from './supabaseClient';
 
 export interface AnalyticsEvent {
-  eventType: 'message_sent' | 'session_start' | 'page_view' | 'ad_interaction' | 'user_action' | 'journey_step';
+  eventType: 'message_sent' | 'session_start' | 'page_view' | 'ad_interaction' | 'user_action' | 'journey_step' | 'cookie_consent' | 'session_update' | 'session_message_increment' | 'user_analytics';
   eventData: {
     chatId?: string;
     messageId?: string;
@@ -105,18 +104,23 @@ export class AnalyticsTracker {
         console.warn('Could not detect location:', error);
       }
 
-      // Store in user_analytics table
-      await supabase.from('user_analytics').upsert({
-        session_id: this.sessionId,
-        user_pseudo_id: this.userId,
-        country_code: this.deviceInfo.countryCode,
-        country_name: this.deviceInfo.countryName,
-        timezone: this.deviceInfo.timezone,
-        device_type: this.deviceInfo.deviceType,
-        browser: this.deviceInfo.browser,
-        os: this.getOS(),
-        screen_resolution: this.deviceInfo.screenResolution,
-        language: this.deviceInfo.language
+      await this.trackEvent({
+        eventType: 'user_analytics',
+        eventData: {
+          sessionId: this.sessionId,
+          userPseudoId: this.userId,
+          countryCode: this.deviceInfo.countryCode,
+          countryName: this.deviceInfo.countryName,
+          timezone: this.deviceInfo.timezone,
+          deviceType: this.deviceInfo.deviceType,
+          browser: this.deviceInfo.browser,
+          os: this.getOS(),
+          screenResolution: this.deviceInfo.screenResolution,
+          language: this.deviceInfo.language
+        },
+        userId: this.userId,
+        sessionId: this.sessionId,
+        timestamp: Date.now()
       });
 
     } catch (error) {
@@ -158,14 +162,20 @@ export class AnalyticsTracker {
     // Track cookie consent
     const preferences = CookieManager.getConsentPreferences();
     if (preferences) {
-      await supabase.from('cookie_consents').insert({
-        session_id: this.sessionId,
-        necessary: preferences.necessary,
-        analytics: preferences.analytics,
-        advertising: preferences.advertising,
-        personalization: preferences.personalization,
-        ai_learning: preferences.aiLearning || false,
-        intimacy_level: preferences.intimacyLevel || false
+      await this.trackEvent({
+        eventType: 'cookie_consent',
+        eventData: {
+          sessionId: this.sessionId,
+          necessary: preferences.necessary,
+          analytics: preferences.analytics,
+          advertising: preferences.advertising,
+          personalization: preferences.personalization,
+          aiLearning: preferences.aiLearning || false,
+          intimacyLevel: preferences.intimacyLevel || false
+        },
+        userId: this.userId,
+        sessionId: this.sessionId,
+        timestamp: Date.now()
       });
     }
 
@@ -199,18 +209,18 @@ export class AnalyticsTracker {
   private async updateSessionDuration(): Promise<void> {
     const duration = Math.floor((Date.now() - this.sessionStartTime) / 1000);
 
-    try {
-      await supabase
-        .from('user_sessions')
-        .update({
-          ended_at: new Date().toISOString(),
-          duration_seconds: duration,
-          is_active: false
-        })
-        .eq('session_id', this.sessionId);
-    } catch (error) {
-      console.warn('Session update error:', error);
-    }
+    await this.trackEvent({
+      eventType: 'session_update',
+      eventData: {
+        sessionId: this.sessionId,
+        endedAt: new Date().toISOString(),
+        durationSeconds: duration,
+        isActive: false
+      },
+      userId: this.userId,
+      sessionId: this.sessionId,
+      timestamp: Date.now()
+    });
   }
 
   public async trackEvent(event: AnalyticsEvent): Promise<void> {
@@ -248,13 +258,15 @@ export class AnalyticsTracker {
     });
 
     // Update session message count
-    try {
-      await supabase.rpc('increment_session_messages', {
-        session_id_param: this.sessionId
-      });
-    } catch (error) {
-      console.warn('Session message count update error:', error);
-    }
+    await this.trackEvent({
+      eventType: 'session_message_increment',
+      eventData: {
+        sessionId: this.sessionId
+      },
+      userId: this.userId,
+      sessionId: this.sessionId,
+      timestamp: Date.now()
+    });
 
     // Track journey steps
     if (senderType === 'user') {
@@ -333,16 +345,17 @@ export class AnalyticsTracker {
   }
 
   public async trackJourneyStep(stepName: string, order: number): Promise<void> {
-    try {
-      await supabase.from('user_journey_steps').insert({
-        session_id: this.sessionId,
-        step_name: stepName,
-        step_order: order,
-        page_path: window.location.pathname
-      });
-    } catch (error) {
-      console.warn('Journey step tracking error:', error);
-    }
+    await this.trackEvent({
+      eventType: 'journey_step',
+      eventData: {
+        stepName,
+        stepOrder: order,
+        pagePath: window.location.pathname
+      },
+      userId: this.userId,
+      sessionId: this.sessionId,
+      timestamp: Date.now()
+    });
   }
 
   private generateSessionId(): string {
@@ -381,65 +394,14 @@ export class AnalyticsTracker {
     this.eventQueue = [];
 
     try {
-      for (const event of eventsToSend) {
-        if (event && event.eventType && event.eventData) {
-          await this.processEvent(event);
-        }
-      }
+      await fetch('/api/analytics/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: eventsToSend, sessionId: this.sessionId })
+      });
     } catch (error) {
       console.warn('Error flushing analytics events:', error);
       this.eventQueue.unshift(...eventsToSend);
-    }
-  }
-
-  private async processEvent(event: AnalyticsEvent): Promise<void> {
-    try {
-      switch (event.eventType) {
-        case 'message_sent':
-          await supabase.from('messages_log').insert({
-            message_id: event.eventData.messageId,
-            sender_type: event.eventData.senderType,
-            chat_id: event.eventData.chatId,
-            text_content: event.eventData.content,
-            has_image: event.eventData.hasImage || false
-          });
-          break;
-
-        case 'page_view':
-          await supabase.from('page_views').insert({
-            session_id: event.sessionId,
-            page_path: event.eventData.page,
-            page_title: event.eventData.title,
-            referrer: event.eventData.referrer
-          });
-          break;
-
-        case 'ad_interaction':
-          await supabase.from('ad_interactions').insert({
-            session_id: event.sessionId,
-            ad_type: event.eventData.adType,
-            ad_network: event.eventData.network,
-            action_type: event.eventData.action,
-            page_path: event.eventData.page,
-            user_country: this.deviceInfo.countryCode,
-            device_type: this.deviceInfo.deviceType
-          });
-          break;
-
-        case 'session_start':
-          await supabase.from('user_sessions').upsert({
-            session_id: event.sessionId,
-            user_pseudo_id: event.userId,
-            device_type: event.eventData.deviceType,
-            browser: event.eventData.browser,
-            country_code: event.eventData.countryCode,
-            timezone: event.eventData.timezone,
-            referrer: event.eventData.referrer
-          });
-          break;
-      }
-    } catch (error) {
-      console.warn(`Error processing ${event.eventType}:`, error);
     }
   }
 

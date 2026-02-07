@@ -100,7 +100,7 @@ const AnalyticsDashboard = React.memo(function AnalyticsDashboard() {
   });
 
   const [isLoading, setIsLoading] = useState(true);
-  const [dataSource, setDataSource] = useState<'supabase' | 'fallback' | 'loading'>('loading');
+  const [dataSource, setDataSource] = useState<'database' | 'fallback' | 'loading'>('loading');
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   const [realTimeMetrics, setRealTimeMetrics] = useState<RealTimeMetrics>({
@@ -264,7 +264,7 @@ const AnalyticsDashboard = React.memo(function AnalyticsDashboard() {
 
       if (overviewData?.success && overviewData.data) {
         const data = overviewData.data;
-        setDataSource('supabase');
+        setDataSource(data.dataSource === 'fallback' ? 'fallback' : 'database');
 
         // Get local metrics for immediate data
         const dailyMessages = parseInt(localStorage.getItem('daily_message_count') || '0');
@@ -515,14 +515,14 @@ const AnalyticsDashboard = React.memo(function AnalyticsDashboard() {
             💰 Revenue Today: ${analytics.adRevenue.toFixed(2)}
           </div>
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full animate-pulse ${dataSource === 'supabase' ? 'bg-green-500' : dataSource === 'fallback' ? 'bg-yellow-500' : 'bg-gray-400'}`}></div>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${dataSource === 'database' ? 'bg-green-500' : dataSource === 'fallback' ? 'bg-yellow-500' : 'bg-gray-400'}`}></div>
             <span className="text-sm text-muted-foreground">
-              {dataSource === 'supabase' ? 'Live Data' : dataSource === 'fallback' ? 'Fallback Data' : 'Loading...'}
+              {dataSource === 'database' ? 'Live Data' : dataSource === 'fallback' ? 'Fallback Data' : 'Loading...'}
             </span>
-            {dataSource === 'supabase' && (
+            {dataSource === 'database' && (
               <Badge variant="secondary" className="ml-2">
                 <Database className="w-3 h-3 mr-1" />
-                Supabase
+                Hostinger DB
               </Badge>
             )}
           </div>
